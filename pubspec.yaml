@@ -67,6 +67,9 @@ dependencies:
   # PDF generation
   pdf: ^3.11.1
   printing: ^5.13.3
+  
+  # Charts
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:
@@ -124,3 +127,4 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
