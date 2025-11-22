@@ -10,7 +10,9 @@ import '../../widgets/movement_stats_card.dart';
 import 'movement_form_screen.dart';
 
 class MovementsListScreen extends StatefulWidget {
-  const MovementsListScreen({super.key});
+  final bool showTodayOnly;
+  
+  const MovementsListScreen({super.key, this.showTodayOnly = false});
 
   @override
   State<MovementsListScreen> createState() => _MovementsListScreenState();
@@ -43,6 +45,26 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
         _loadMovements();
       }
     });
+  }
+
+  Future<void> _loadMovementsToday() async {
+    if (_isLoadingMovements) return;
+    
+    _isLoadingMovements = true;
+    try {
+      final movementProvider = Provider.of<MovementProvider>(context, listen: false);
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final todayEnd = todayStart.add(const Duration(days: 1));
+      
+      await movementProvider.filterByDateRange(todayStart, todayEnd);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMovements = false;
+        });
+      }
+    }
   }
 
   void _onProviderChanged() {
@@ -85,7 +107,13 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
     _isLoadingMovements = true;
     try {
       final movementProvider = Provider.of<MovementProvider>(context, listen: false);
-      await movementProvider.loadMovements();
+      
+      // Si se solicita mostrar solo movimientos de hoy, filtrar por fecha
+      if (widget.showTodayOnly) {
+        await _loadMovementsToday();
+      } else {
+        await movementProvider.loadMovements();
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -124,7 +152,7 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historial de Movimientos'),
+        title: Text(widget.showTodayOnly ? 'Movimientos de Hoy' : 'Historial de Movimientos'),
         backgroundColor: const Color(0xFF667eea),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -262,14 +290,49 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
               // Indicador de resultados
           Consumer<MovementProvider>(
             builder: (context, movementProvider, child) {
-              final filteredCount = movementProvider.filteredMovements.length;
-              final totalCount = movementProvider.movements.length;
+              // Calcular contadores según si estamos mostrando solo hoy o todos
+              int filteredCount;
+              int totalCount;
+              
+              if (widget.showTodayOnly) {
+                final now = DateTime.now();
+                final todayStart = DateTime(now.year, now.month, now.day);
+                final todayEnd = todayStart.add(const Duration(days: 1));
+                
+                final todayMovements = movementProvider.movements.where((movement) {
+                  final movementDate = movement.fecha;
+                  return movementDate.isAfter(todayStart) && movementDate.isBefore(todayEnd);
+                }).toList();
+                
+                totalCount = todayMovements.length;
+                filteredCount = todayMovements.where((m) {
+                  if (movementProvider.selectedType != null && m.tipo != movementProvider.selectedType) {
+                    return false;
+                  }
+                  if (movementProvider.searchQuery.isNotEmpty) {
+                    final query = movementProvider.searchQuery.toLowerCase();
+                    final productoNombre = (m.productoNombre ?? '').toLowerCase();
+                    final motivo = m.motivo.toLowerCase();
+                    final usuarioNombre = (m.usuarioNombre ?? '').toLowerCase();
+                    if (!productoNombre.contains(query) && 
+                        !motivo.contains(query) && 
+                        !usuarioNombre.contains(query)) {
+                      return false;
+                    }
+                  }
+                  return true;
+                }).length;
+              } else {
+                filteredCount = movementProvider.filteredMovements.length;
+                totalCount = movementProvider.movements.length;
+              }
               
               if (totalCount == 0) {
                 return const SizedBox.shrink();
               }
               
-              final hasFilters = movementProvider.selectedType != null ||
+              final hasFilters = widget.showTodayOnly || 
+                  movementProvider.selectedType != null ||
                   movementProvider.selectedProductId != null ||
                   movementProvider.startDate != null ||
                   movementProvider.searchQuery.isNotEmpty;
@@ -289,7 +352,7 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (hasFilters)
+                    if (hasFilters && !widget.showTodayOnly)
                       TextButton.icon(
                         onPressed: _clearFilters,
                         icon: const Icon(FontAwesomeIcons.xmark, size: 12),
@@ -339,8 +402,45 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
   }
 
   Widget _buildMovementsList(MovementProvider movementProvider, bool hasMovements) {
-    final filteredMovements = movementProvider.filteredMovements;
-    final hasFilteredMovements = filteredMovements.isNotEmpty;
+    // Si showTodayOnly es true, filtrar solo movimientos de hoy
+    List<Movement> movementsToShow;
+    if (widget.showTodayOnly) {
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final todayEnd = todayStart.add(const Duration(days: 1));
+      
+      // Obtener movimientos base
+      var baseMovements = List<Movement>.from(movementProvider.movements);
+      
+      // Filtrar por fecha de hoy
+      baseMovements = baseMovements.where((movement) {
+        final movementDate = movement.fecha;
+        return movementDate.isAfter(todayStart) && movementDate.isBefore(todayEnd);
+      }).toList();
+      
+      // Aplicar filtros adicionales si existen
+      if (movementProvider.selectedType != null) {
+        baseMovements = baseMovements.where((m) => m.tipo == movementProvider.selectedType).toList();
+      }
+      
+      if (movementProvider.searchQuery.isNotEmpty) {
+        final query = movementProvider.searchQuery.toLowerCase();
+        baseMovements = baseMovements.where((movement) {
+          final productoNombre = (movement.productoNombre ?? '').toLowerCase();
+          final motivo = movement.motivo.toLowerCase();
+          final usuarioNombre = (movement.usuarioNombre ?? '').toLowerCase();
+          return productoNombre.contains(query) ||
+                 motivo.contains(query) ||
+                 usuarioNombre.contains(query);
+        }).toList();
+      }
+      
+      movementsToShow = baseMovements;
+    } else {
+      movementsToShow = movementProvider.filteredMovements;
+    }
+    
+    final hasFilteredMovements = movementsToShow.isNotEmpty;
     
     if (!hasMovements) {
       return EmptyState(
@@ -361,10 +461,18 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
     if (!hasFilteredMovements) {
       return EmptyState(
         icon: FontAwesomeIcons.magnifyingGlass,
-        title: 'No se encontraron resultados',
-        message: 'No hay movimientos que coincidan con tu búsqueda.\nIntenta con otros términos o limpia los filtros.',
-        actionLabel: 'Limpiar Filtros',
-        onAction: _clearFilters,
+        title: widget.showTodayOnly ? 'No hay movimientos hoy' : 'No se encontraron resultados',
+        message: widget.showTodayOnly 
+            ? 'No se han registrado movimientos el día de hoy.\nIntenta crear un nuevo movimiento.'
+            : 'No hay movimientos que coincidan con tu búsqueda.\nIntenta con otros términos o limpia los filtros.',
+        actionLabel: widget.showTodayOnly ? 'Registrar Movimiento' : 'Limpiar Filtros',
+        onAction: widget.showTodayOnly ? () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const MovementFormScreen(),
+            ),
+          ).then((_) => _loadMovements());
+        } : _clearFilters,
       );
     }
 
@@ -372,7 +480,7 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
       opacity: _fadeAnimation,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: filteredMovements.length + 1, // +1 para la tarjeta de estadísticas
+        itemCount: movementsToShow.length + 1, // +1 para la tarjeta de estadísticas
         itemBuilder: (context, index) {
           // Mostrar estadísticas al inicio
           if (index == 0) {
@@ -380,7 +488,7 @@ class _MovementsListScreenState extends State<MovementsListScreen> with TickerPr
           }
           
           // Mostrar movimientos
-          final movement = filteredMovements[index - 1];
+          final movement = movementsToShow[index - 1];
           return TweenAnimationBuilder<double>(
             tween: Tween(begin: 0.0, end: 1.0),
             duration: Duration(milliseconds: 300 + (index * 50)),
