@@ -9,6 +9,7 @@ import '../products/products_list_screen.dart';
 import '../movements/movements_list_screen.dart';
 import '../suppliers/suppliers_list_screen.dart';
 import '../reports/reports_screen.dart';
+import '../reports/inventory_value_chart_screen.dart';
 import '../../providers/alert_provider.dart';
 import '../../models/alert.dart';
 import '../../widgets/alerts_menu.dart';
@@ -546,6 +547,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     value: '\$${totalValue.toStringAsFixed(2)}',
                     icon: FontAwesomeIcons.dollarSign,
                     color: const Color(0xFF3B82F6),
+                    onTap: () {
+                      // Navegar a la gráfica del valor del inventario
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const InventoryValueChartScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 16),
