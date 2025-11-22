@@ -1,5 +1,9 @@
 # StockMaster PyME
 
+<p align="center">
+  <img src="Logo.png" width="100%" alt="Logo del proyecto">
+</p>
+
 StockMaster PyME es una aplicación móvil desarrollada en Flutter para la gestión de inventario en pequeñas y medianas empresas. Este proyecto forma parte de un trabajo académico en Ingeniería de Software y sigue prácticas de arquitectura modular, documentación formal y control de versiones.
 
 ## 1. Descripción General
