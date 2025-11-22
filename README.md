@@ -60,8 +60,6 @@ inventario/
 ├── lib/
 ├── test/
 ├── integration_test/
-├── image/
-│   └── DOCUMENTACION_PROYECTO/
 ├── pubspec.yaml
 └── README.md
 ```
